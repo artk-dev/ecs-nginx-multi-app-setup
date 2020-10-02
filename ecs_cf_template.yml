@@ -1,0 +1,663 @@
+Parameters:
+    VPCid:
+        # describe-vpcs
+        Description: Your VPC ID
+        Type: String
+        Default: <your-vpc-id>
+    Subnets:
+        # describe-subnets
+        Description: IDs of all subnets in your vpc
+        Type: List<AWS::EC2::Subnet::Id>
+        Default: <your-subnet-1>, <your-subnet-2>...
+    AppImageURI:
+        Description: URI of the app1 docker image
+        Type: String
+        Default: <app1-image-uri>
+    App2ImageURI:
+        Description: URI of the app2 docker image
+        Type: String
+        Default: <app2-image-uri>
+    NginxImageURI:
+        Description: URI of the nginx docker image
+        Type: String
+        Default: <nginx-image-uri>
+Resources:
+    TestAppTaskDefRole:
+        Type: 'AWS::IAM::Role'
+        Properties:
+            AssumeRolePolicyDocument:
+                Version: 2012-10-17
+                Statement:
+                  - Effect: Allow
+                    Principal:
+                        Service:
+                            - ecs-tasks.amazonaws.com
+                    Action: 'sts:AssumeRole'
+            Path: /
+            Policies:
+                  - PolicyName: test-app-taskdef-policy
+                    PolicyDocument:
+                        Version: 2012-10-17
+                        Statement:
+                          - Effect: Allow
+                            Action:
+                            - application-autoscaling:DeleteScalingPolicy
+                            - application-autoscaling:DeregisterScalableTarget
+                            - application-autoscaling:DescribeScalableTargets
+                            - application-autoscaling:DescribeScalingActivities
+                            - application-autoscaling:DescribeScalingPolicies
+                            - application-autoscaling:PutScalingPolicy
+                            - application-autoscaling:RegisterScalableTarget
+                            - appmesh:ListMeshes
+                            - appmesh:ListVirtualNodes
+                            - appmesh:DescribeVirtualNode
+                            - autoscaling:UpdateAutoScalingGroup
+                            - autoscaling:CreateAutoScalingGroup
+                            - autoscaling:CreateLaunchConfiguration
+                            - autoscaling:DeleteAutoScalingGroup
+                            - autoscaling:DeleteLaunchConfiguration
+                            - autoscaling:Describe*
+                            - cloudformation:CreateStack
+                            - cloudformation:DeleteStack
+                            - cloudformation:DescribeStack*
+                            - cloudformation:UpdateStack
+                            - cloudwatch:DescribeAlarms
+                            - cloudwatch:DeleteAlarms
+                            - cloudwatch:GetMetricStatistics
+                            - cloudwatch:PutMetricAlarm
+                            - ec2:AssociateRouteTable
+                            - ec2:AttachInternetGateway
+                            - ec2:AuthorizeSecurityGroupIngress
+                            - ec2:CancelSpotFleetRequests
+                            - ec2:CreateInternetGateway
+                            - ec2:CreateLaunchTemplate
+                            - ec2:CreateRoute
+                            - ec2:CreateRouteTable
+                            - ec2:CreateSecurityGroup
+                            - ec2:CreateSubnet
+                            - ec2:CreateVpc
+                            - ec2:DeleteLaunchTemplate
+                            - ec2:DeleteSubnet
+                            - ec2:DeleteVpc
+                            - ec2:Describe*
+                            - ec2:DetachInternetGateway
+                            - ec2:DisassociateRouteTable
+                            - ec2:ModifySubnetAttribute
+                            - ec2:ModifyVpcAttribute
+                            - ec2:RunInstances
+                            - ec2:RequestSpotFleet
+                            - elasticfilesystem:DescribeFileSystems
+                            - elasticfilesystem:DescribeAccessPoints
+                            - elasticloadbalancing:CreateListener
+                            - elasticloadbalancing:CreateLoadBalancer
+                            - elasticloadbalancing:CreateRule
+                            - elasticloadbalancing:CreateTargetGroup
+                            - elasticloadbalancing:DeleteListener
+                            - elasticloadbalancing:DeleteLoadBalancer
+                            - elasticloadbalancing:DeleteRule
+                            - elasticloadbalancing:DeleteTargetGroup
+                            - elasticloadbalancing:DescribeListeners
+                            - elasticloadbalancing:DescribeLoadBalancers
+                            - elasticloadbalancing:DescribeRules
+                            - elasticloadbalancing:DescribeTargetGroups
+                            - ecs:*
+                            - events:DescribeRule
+                            - events:DeleteRule
+                            - events:ListRuleNamesByTarget
+                            - events:ListTargetsByRule
+                            - events:PutRule
+                            - events:PutTargets
+                            - events:RemoveTargets
+                            - iam:ListAttachedRolePolicies
+                            - iam:ListInstanceProfiles
+                            - iam:ListRoles
+                            - logs:CreateLogGroup
+                            - logs:DescribeLogGroups
+                            - logs:FilterLogEvents
+                            - route53:GetHostedZone
+                            - route53:ListHostedZonesByName
+                            - route53:CreateHostedZone
+                            - route53:DeleteHostedZone
+                            - route53:GetHealthCheck
+                            - servicediscovery:CreatePrivateDnsNamespace
+                            - servicediscovery:CreateService
+                            - servicediscovery:GetNamespace
+                            - servicediscovery:GetOperation
+                            - servicediscovery:GetService
+                            - servicediscovery:ListNamespaces
+                            - servicediscovery:ListServices
+                            - servicediscovery:UpdateService
+                            - servicediscovery:DeleteService
+                            Resource:
+                            - "*"
+                          - Effect: Allow
+                            Action:
+                            - ssm:GetParametersByPath
+                            - ssm:GetParameters
+                            - ssm:GetParameter
+                            Resource: arn:aws:ssm:*:*:parameter/aws/service/ecs*
+                          - Effect: Allow
+                            Action:
+                            - ec2:DeleteInternetGateway
+                            - ec2:DeleteRoute
+                            - ec2:DeleteRouteTable
+                            - ec2:DeleteSecurityGroup
+                            Resource:
+                            - "*"
+                            Condition:
+                                StringLike:
+                                    ec2:ResourceTag/aws:cloudformation:stack-name: EC2ContainerService-*
+                          - Action: iam:PassRole
+                            Effect: Allow
+                            Resource:
+                            - "*"
+                            Condition:
+                                StringLike:
+                                    iam:PassedToService: ecs-tasks.amazonaws.com
+                          - Action: iam:PassRole
+                            Effect: Allow
+                            Resource:
+                            - arn:aws:iam::*:role/ecsInstanceRole*
+                            Condition:
+                                StringLike:
+                                    iam:PassedToService:
+                                    - ec2.amazonaws.com
+                                    - ec2.amazonaws.com.cn
+                          - Action: iam:PassRole
+                            Effect: Allow
+                            Resource:
+                            - arn:aws:iam::*:role/ecsAutoscaleRole*
+                            Condition:
+                                StringLike:
+                                    iam:PassedToService:
+                                    - application-autoscaling.amazonaws.com
+                                    - application-autoscaling.amazonaws.com.cn
+                          - Effect: Allow
+                            Action: iam:CreateServiceLinkedRole
+                            Resource: "*"
+                            Condition:
+                                StringLike:
+                                    iam:AWSServiceName:
+                                    - ecs.amazonaws.com
+                                    - spot.amazonaws.com
+                                    - spotfleet.amazonaws.com
+                                    - ecs.application-autoscaling.amazonaws.com
+                                    - autoscaling.amazonaws.com
+                          - Effect: Allow
+                            Action:
+                            - ecr:GetAuthorizationToken
+                            - ecr:BatchCheckLayerAvailability
+                            - ecr:GetDownloadUrlForLayer
+                            - ecr:BatchGetImage
+                            - logs:CreateLogStream
+                            - logs:PutLogEvents
+                            Resource: "*"
+                          - Effect: Allow
+                            Action:
+                            - s3:GetEncryptionConfiguration
+                            - s3:GetBucketAcl
+                            - s3:GetBucketLocation
+                            Resource: arn:aws:s3:::dcp-685169213993-eu-west-2-logs
+                          - Effect: Allow
+                            Action:
+                            - logs:CreateLogStream
+                            - cloudwatch:PutMetricData
+                            - logs:DescribeLogGroups
+                            - logs:DescribeLogStreams
+                            - kms:*
+                            - ssm:*
+                            - ec2messages:*
+                            - ssmmessages:*
+                            - logs:CreateLogGroup
+                            - logs:PutLogEvents
+                            - kms:ReEncrypt*
+                            - ec2:DescribeInstanceStatus
+                            Resource: "*"
+                          - Effect: Allow
+                            Action:
+                            - s3:PutObject
+                            - s3:AbortMultipartUpload
+                            Resource: arn:aws:s3:::dcp-685169213993-eu-west-2-logs/session-manager/*
+    TestAppEC2Role:
+        Type: AWS::IAM::Role
+        Properties:
+            AssumeRolePolicyDocument:
+                Version: 2012-10-17
+                Statement:
+                  - Effect: Allow
+                    Principal:
+                        Service:
+                            - ec2.amazonaws.com
+                    Action: 'sts:AssumeRole'
+            Path: /
+            Policies:
+                - PolicyName: TestAppEC2Policy
+                  PolicyDocument:
+                        Version: '2012-10-17'
+                        Statement:
+                          - Action: ec2:*
+                            Effect: Allow
+                            Resource: "*"
+                          - Effect: Allow
+                            Action: elasticloadbalancing:*
+                            Resource: "*"
+                          - Effect: Allow
+                            Action: cloudwatch:*
+                            Resource: "*"
+                          - Effect: Allow
+                            Action: autoscaling:*
+                            Resource: "*"
+                          - Effect: Allow
+                            Action: iam:CreateServiceLinkedRole
+                            Resource: "*"
+                            Condition:
+                                StringEquals:
+                                    iam:AWSServiceName:
+                                    - autoscaling.amazonaws.com
+                                    - ec2scheduled.amazonaws.com
+                                    - elasticloadbalancing.amazonaws.com
+                                    - spot.amazonaws.com
+                                    - spotfleet.amazonaws.com
+                                    - transitgateway.amazonaws.com
+                          - Effect: Allow
+                            Action:
+                            - application-autoscaling:DeleteScalingPolicy
+                            - application-autoscaling:DeregisterScalableTarget
+                            - application-autoscaling:DescribeScalableTargets
+                            - application-autoscaling:DescribeScalingActivities
+                            - application-autoscaling:DescribeScalingPolicies
+                            - application-autoscaling:PutScalingPolicy
+                            - application-autoscaling:RegisterScalableTarget
+                            - appmesh:DescribeVirtualGateway
+                            - appmesh:DescribeVirtualNode
+                            - appmesh:ListMeshes
+                            - appmesh:ListVirtualGateways
+                            - appmesh:ListVirtualNodes
+                            - autoscaling:CreateAutoScalingGroup
+                            - autoscaling:CreateLaunchConfiguration
+                            - autoscaling:DeleteAutoScalingGroup
+                            - autoscaling:DeleteLaunchConfiguration
+                            - autoscaling:Describe*
+                            - autoscaling:UpdateAutoScalingGroup
+                            - cloudformation:CreateStack
+                            - cloudformation:DeleteStack
+                            - cloudformation:DescribeStack*
+                            - cloudformation:UpdateStack
+                            - cloudwatch:DeleteAlarms
+                            - cloudwatch:DescribeAlarms
+                            - cloudwatch:GetMetricStatistics
+                            - cloudwatch:PutMetricAlarm
+                            - codedeploy:BatchGetApplicationRevisions
+                            - codedeploy:BatchGetApplications
+                            - codedeploy:BatchGetDeploymentGroups
+                            - codedeploy:BatchGetDeployments
+                            - codedeploy:ContinueDeployment
+                            - codedeploy:CreateApplication
+                            - codedeploy:CreateDeployment
+                            - codedeploy:CreateDeploymentGroup
+                            - codedeploy:GetApplication
+                            - codedeploy:GetApplicationRevision
+                            - codedeploy:GetDeployment
+                            - codedeploy:GetDeploymentConfig
+                            - codedeploy:GetDeploymentGroup
+                            - codedeploy:GetDeploymentTarget
+                            - codedeploy:ListApplicationRevisions
+                            - codedeploy:ListApplications
+                            - codedeploy:ListDeploymentConfigs
+                            - codedeploy:ListDeploymentGroups
+                            - codedeploy:ListDeployments
+                            - codedeploy:ListDeploymentTargets
+                            - codedeploy:RegisterApplicationRevision
+                            - codedeploy:StopDeployment
+                            - ec2:AssociateRouteTable
+                            - ec2:AttachInternetGateway
+                            - ec2:AuthorizeSecurityGroupIngress
+                            - ec2:CancelSpotFleetRequests
+                            - ec2:CreateInternetGateway
+                            - ec2:CreateLaunchTemplate
+                            - ec2:CreateRoute
+                            - ec2:CreateRouteTable
+                            - ec2:CreateSecurityGroup
+                            - ec2:CreateSubnet
+                            - ec2:CreateVpc
+                            - ec2:DeleteLaunchTemplate
+                            - ec2:DeleteSubnet
+                            - ec2:DeleteVpc
+                            - ec2:Describe*
+                            - ec2:DetachInternetGateway
+                            - ec2:DisassociateRouteTable
+                            - ec2:ModifySubnetAttribute
+                            - ec2:ModifyVpcAttribute
+                            - ec2:RequestSpotFleet
+                            - ec2:RunInstances
+                            - ecs:*
+                            - elasticfilesystem:DescribeAccessPoints
+                            - elasticfilesystem:DescribeFileSystems
+                            - elasticloadbalancing:CreateListener
+                            - elasticloadbalancing:CreateLoadBalancer
+                            - elasticloadbalancing:CreateRule
+                            - elasticloadbalancing:CreateTargetGroup
+                            - elasticloadbalancing:DeleteListener
+                            - elasticloadbalancing:DeleteLoadBalancer
+                            - elasticloadbalancing:DeleteRule
+                            - elasticloadbalancing:DeleteTargetGroup
+                            - elasticloadbalancing:DescribeListeners
+                            - elasticloadbalancing:DescribeLoadBalancers
+                            - elasticloadbalancing:DescribeRules
+                            - elasticloadbalancing:DescribeTargetGroups
+                            - events:DeleteRule
+                            - events:DescribeRule
+                            - events:ListRuleNamesByTarget
+                            - events:ListTargetsByRule
+                            - events:PutRule
+                            - events:PutTargets
+                            - events:RemoveTargets
+                            - iam:ListAttachedRolePolicies
+                            - iam:ListInstanceProfiles
+                            - iam:ListRoles
+                            - logs:CreateLogGroup
+                            - logs:DescribeLogGroups
+                            - logs:FilterLogEvents
+                            - route53:CreateHostedZone
+                            - route53:DeleteHostedZone
+                            - route53:GetHealthCheck
+                            - route53:GetHostedZone
+                            - route53:ListHostedZonesByName
+                            - servicediscovery:CreatePrivateDnsNamespace
+                            - servicediscovery:CreateService
+                            - servicediscovery:DeleteService
+                            - servicediscovery:GetNamespace
+                            - servicediscovery:GetOperation
+                            - servicediscovery:GetService
+                            - servicediscovery:ListNamespaces
+                            - servicediscovery:ListServices
+                            - servicediscovery:UpdateService
+                            - sns:ListTopics
+                            Resource:
+                            - "*"
+                          - Effect: Allow
+                            Action:
+                            - ssm:GetParameter
+                            - ssm:GetParameters
+                            - ssm:GetParametersByPath
+                            Resource: arn:aws:ssm:*:*:parameter/aws/service/ecs*
+                          - Effect: Allow
+                            Action:
+                            - ec2:DeleteInternetGateway
+                            - ec2:DeleteRoute
+                            - ec2:DeleteRouteTable
+                            - ec2:DeleteSecurityGroup
+                            Resource:
+                            - "*"
+                            Condition:
+                                StringLike:
+                                    ec2:ResourceTag/aws:cloudformation:stack-name: EC2ContainerService-*
+                          - Action: iam:PassRole
+                            Effect: Allow
+                            Resource:
+                            - "*"
+                            Condition:
+                                StringLike:
+                                    iam:PassedToService: ecs-tasks.amazonaws.com
+                          - Action: iam:PassRole
+                            Effect: Allow
+                            Resource:
+                            - arn:aws:iam::*:role/ecsInstanceRole*
+                            Condition:
+                                StringLike:
+                                    iam:PassedToService:
+                                    - ec2.amazonaws.com
+                                    - ec2.amazonaws.com.cn
+                          - Action: iam:PassRole
+                            Effect: Allow
+                            Resource:
+                            - arn:aws:iam::*:role/ecsAutoscaleRole*
+                            Condition:
+                                StringLike:
+                                    iam:PassedToService:
+                                    - application-autoscaling.amazonaws.com
+                                    - application-autoscaling.amazonaws.com.cn
+                          - Effect: Allow
+                            Action: iam:CreateServiceLinkedRole
+                            Resource: "*"
+                            Condition:
+                                StringLike:
+                                    iam:AWSServiceName:
+                                    - autoscaling.amazonaws.com
+                                    - ecs.amazonaws.com
+                                    - ecs.application-autoscaling.amazonaws.com
+                                    - spot.amazonaws.com
+                                    - spotfleet.amazonaws.com
+                          - Effect: Allow
+                            Action:
+                            - ecr:*
+                            - cloudtrail:LookupEvents
+                            Resource: "*"
+                          - Sid: VisualEditor0
+                            Effect: Allow
+                            Action:
+                            - s3:GetEncryptionConfiguration
+                            - s3:GetBucketAcl
+                            - s3:GetBucketLocation
+                            Resource: arn:aws:s3:::dcp-685169213993-eu-west-2-logs
+                          - Sid: VisualEditor1
+                            Effect: Allow
+                            Action:
+                            - logs:CreateLogStream
+                            - cloudwatch:PutMetricData
+                            - logs:DescribeLogGroups
+                            - logs:DescribeLogStreams
+                            - kms:*
+                            - ssm:*
+                            - ec2messages:*
+                            - ssmmessages:*
+                            - logs:CreateLogGroup
+                            - logs:PutLogEvents
+                            - kms:ReEncrypt*
+                            - ec2:DescribeInstanceStatus
+                            Resource: "*"
+                          - Sid: VisualEditor2
+                            Effect: Allow
+                            Action:
+                            - s3:PutObject
+                            - s3:AbortMultipartUpload
+                            Resource: arn:aws:s3:::dcp-685169213993-eu-west-2-logs/session-manager/*
+    TestAppInstanceProfile:
+        Type: AWS::IAM::InstanceProfile
+        Properties: 
+            InstanceProfileName: TestAppInstanceProfile
+            Roles: 
+                - !Ref TestAppEC2Role
+    TestAppLoadBalancer:
+        Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+        Properties: 
+            IpAddressType: ipv4
+            Name: TestAppLoadBalancer
+            SecurityGroups: 
+                - !GetAtt TestAppSecGrp.GroupId
+            Subnets: !Ref Subnets
+            Type: application
+    TestAppCluster:
+        Type: AWS::ECS::Cluster
+        Properties:
+            ClusterName: TestAppCluster
+    TestAppSecGrp:
+        Type: AWS::EC2::SecurityGroup
+        Properties:
+            VpcId: !Ref VPCid
+            GroupName: TestAppSecGrp
+            GroupDescription: Security group for test app resources like ALB, ASG and Target Groups
+            SecurityGroupIngress:
+                - FromPort: 80
+                  ToPort: 80
+                  IpProtocol: tcp
+                  CidrIp: 0.0.0.0/0
+            SecurityGroupEgress:
+                - IpProtocol: -1
+                  CidrIp: 0.0.0.0/0
+    TestAppLaunchTemplate:
+        Type: AWS::EC2::LaunchTemplate
+        Properties:
+            LaunchTemplateName: TestAppLaunchTemplate
+            LaunchTemplateData:
+                InstanceType: t2.micro
+                IamInstanceProfile:
+                    Arn: !GetAtt TestAppInstanceProfile.Arn
+                ImageId: ami-01160aa0f76932771
+                SecurityGroupIds:
+                    - !GetAtt TestAppSecGrp.GroupId
+                UserData: 
+                    Fn::Base64:
+                        Fn::Join: 
+                            - ""
+                            - - "#!/bin/bash \n"
+                              - "echo ECS_CLUSTER="
+                              - !Ref TestAppCluster
+                              - " >> /etc/ecs/ecs.config"
+    TestAppAutoScalingGroup:
+        Type: AWS::AutoScaling::AutoScalingGroup
+        Properties:
+            AutoScalingGroupName: TestAppAutoScalingGroup
+            AvailabilityZones: 
+                Fn::GetAZs: !Ref "AWS::Region"
+            DesiredCapacity: "4"
+            LaunchTemplate:
+                LaunchTemplateId: !Ref TestAppLaunchTemplate
+                Version: !GetAtt TestAppLaunchTemplate.LatestVersionNumber
+            MaxSize: "4"
+            MinSize: "4"
+            VPCZoneIdentifier: !Ref Subnets
+    TestAppTaskDefinition:
+        Type: AWS::ECS::TaskDefinition
+        Properties:
+            ContainerDefinitions:
+                - Name: TestAppContainer
+                  Image: !Ref AppImageURI
+                  Memory: 512
+                  CPU: 512
+                - Name: NginxContainer
+                  Image: !Ref NginxImageURI
+                  Memory: 256
+                  CPU: 256
+                  PortMappings:
+                    - ContainerPort: 80
+                      HostPort: 80
+                      Protocol: TCP
+                  Links:
+                    - TestAppContainer
+            ExecutionRoleArn: !GetAtt TestAppTaskDefRole.Arn
+            TaskRoleArn: !GetAtt TestAppTaskDefRole.Arn
+            Family: TestAppTaskDef
+            NetworkMode: bridge
+            RequiresCompatibilities:
+                - EC2
+    TestApp2TaskDefinition:
+        Type: AWS::ECS::TaskDefinition
+        Properties:
+            ContainerDefinitions:
+                  - Name: TestAppContainer
+                    Image: !Ref App2ImageURI
+                    Memory: 512
+                    CPU: 512
+                  - Name: NginxContainer
+                    Image: !Ref NginxImageURI
+                    Memory: 256
+                    CPU: 256
+                    PortMappings:
+                      - ContainerPort: 80
+                        HostPort: 80
+                        Protocol: TCP
+                    Links:
+                    - TestAppContainer
+            ExecutionRoleArn: !GetAtt TestAppTaskDefRole.Arn
+            TaskRoleArn: !GetAtt TestAppTaskDefRole.Arn
+            Family: TestApp2TaskDef
+            NetworkMode: bridge
+            RequiresCompatibilities:
+                - EC2
+    TestAppTargetGroup:
+        Type: AWS::ElasticLoadBalancingV2::TargetGroup
+        Properties:
+            Name: TestAppServiceTG
+            Protocol: HTTP
+            VpcId: !Ref VPCid
+            HealthCheckPath: /app1/
+            Protocol: HTTP
+            Port: 80
+            TargetType: instance
+    TestApp2TargetGroup:
+        Type: AWS::ElasticLoadBalancingV2::TargetGroup
+        Properties:
+            Name: TestApp2ServiceTG
+            Protocol: HTTP
+            VpcId: !Ref VPCid
+            HealthCheckPath: /app2/
+            Protocol: HTTP
+            Port: 80
+            TargetType: instance
+    TestAppLBListener:
+        Type: AWS::ElasticLoadBalancingV2::Listener
+        Properties:
+            DefaultActions:
+                - Type: fixed-response
+                  FixedResponseConfig:
+                        ContentType: "text/plain"
+                        MessageBody: "Invalid URL path. Please use '/app1' or '/app2'"
+                        StatusCode: "404"
+            LoadBalancerArn: !Ref TestAppLoadBalancer
+            Port: 80
+            Protocol: HTTP
+    TestAppListenerRule:
+        Type: AWS::ElasticLoadBalancingV2::ListenerRule
+        Properties:
+            Actions:
+                - Type: forward
+                  TargetGroupArn: !Ref TestAppTargetGroup                    
+            Conditions:
+                - Field: path-pattern
+                  PathPatternConfig:
+                        Values:
+                            - "/app1"
+            Priority: 1
+            ListenerArn: !Ref TestAppLBListener
+    TestApp2ListenerRule:
+        Type: AWS::ElasticLoadBalancingV2::ListenerRule
+        Properties:
+            Actions:
+                - Type: forward
+                  TargetGroupArn: !Ref TestApp2TargetGroup                    
+            Conditions:
+                - Field: path-pattern
+                  PathPatternConfig:
+                        Values:
+                            - "/app2"
+            Priority: 2
+            ListenerArn: !Ref TestAppLBListener
+    TestAppService:
+        Type: AWS::ECS::Service
+        DependsOn: TestAppListenerRule
+        Properties:
+            ServiceName: TestAppService
+            Cluster: !Ref TestAppCluster
+            DesiredCount: 2
+            LaunchType: EC2
+            TaskDefinition: !Ref TestAppTaskDefinition
+            SchedulingStrategy: REPLICA
+            LoadBalancers:
+                - ContainerName: NginxContainer
+                  ContainerPort: 80
+                  TargetGroupArn: !Ref TestAppTargetGroup
+    TestApp2Service:
+        Type: AWS::ECS::Service
+        DependsOn: TestApp2ListenerRule
+        Properties:
+            ServiceName: TestApp2Service
+            Cluster: !Ref TestAppCluster
+            DesiredCount: 2
+            LaunchType: EC2
+            TaskDefinition: !Ref TestApp2TaskDefinition
+            SchedulingStrategy: REPLICA
+            LoadBalancers:
+                - ContainerName: NginxContainer
+                  ContainerPort: 80
+                  TargetGroupArn: !Ref TestApp2TargetGroup
